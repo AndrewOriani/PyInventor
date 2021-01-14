@@ -1,0 +1,4 @@
+attrdict>=1.8.0
+numpy>=1.15.0
+ipython>=7.0.0
+xlwings>=0.19.5
