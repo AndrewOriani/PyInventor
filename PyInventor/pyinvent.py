@@ -587,7 +587,10 @@ class iPart(com_obj):
     
     def two_point_centered_rect(self, sketch, center, corner):
         sketch=sketch.sketch_obj
-        return sketch.SketchLines.AddAsTwoPointCenteredRectangle(self.point(center), self.point(corner))
+        rect_obj=sketch.SketchLines.AddAsTwoPointCenteredRectangle(self.point(center), self.point(corner))
+        rect_obj_coll=self.new_obj_collection()
+        return rect_obj_coll.Add(rect_obj)
+
     
     def sketch_point(self, sketch, pos):
         sketch_obj=sketch.sketch_obj
@@ -605,7 +608,9 @@ class iPart(com_obj):
         return self.create_obj_collection(points)
     
     def two_point_rect(self, sketch, corner_1, corner_2):
-        return sketch.SketchLines.AddAsTwoPointRectangle(self.point(corner_1), self.point(corner_2))
+        rect_obj=sketch.SketchLines.AddAsTwoPointRectangle(self.point(corner_1), self.point(corner_2))
+        rect_obj_coll=self.new_obj_collection()
+        return rect_obj_coll.Add(rect_obj)
     
     def sketch_circle(self, sketch, center, radius):
         sketch=sketch.sketch_obj
@@ -681,7 +686,6 @@ class iPart(com_obj):
         else:
             raise Exception('ERROR: Extrude direction must be positive, negative, or symmetric')
         if obj_collection==None:
-            print(type(sketch))
             profile=sketch.Profiles.AddForSolid()
         elif self.API_type(obj_collection)=='ObjectCollection':
             profile=sketch.Profiles.AddForSolid(False, obj_collection)
