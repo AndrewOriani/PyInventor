@@ -853,7 +853,42 @@ class iPart(com_obj):
         pat_feat=self.compdef.Features.RectangularPatternFeatures.AddByDefinition(pat_def)
         return pat_feat
         
-    
+    def mirror_objects(self, obj_collection, mirror_plane='xy', compute_type='identical'):
+        if type(mirror_plane)==str:
+            if mirror_plane=='xy':
+                mirror_plane='XY Plane'
+            elif mirror_plane=='xz':
+                mirror_plane='XZ Plane'
+            elif mirror_plane=='yz':
+                mirror_plane='YZ Plane'
+            else:
+                raise Exception('ERROR: Invalid plane desciptor, (xy, xz, yz)')
+            mirror_plane=self.compdef.WorkPlanes.Item(mirror_plane)
+
+        elif self.API_type(mirror_plane)=='planes':
+            mirror_plane=mirror_plane.plane_obj
+            pass
+        elif self.API_type(mirror_plane)=='WorkPlane':
+            pass
+        else:
+            raise TypeError('ERROR: Invalid plane desciptor, (xy, xz, yz) or Inventor plane object')
+
+        if compute_type=='identical':
+            comp_type=constants.kIdenticalCompute
+        elif compute_type=='optimized':
+            comp_type=constants.kOptimizedCompute
+        elif compute_type=='adjusted':
+            comp_type=constants.kAdjustToModelCompute
+        else:
+            raise Exception('Compute-type must be identical, optimized, or adjusted...may need to play around with.')
+
+        if self.API_type(obj_collection)!='ObjectCollection':
+            raise TypeError('ERROR: obj_collection must be of object collection type (see new_obj_collection)')
+        else:
+            pass
+        mirror_def=self.compdef.Features.MirrorFeatures.CreateDefinition(obj_collection, mirror_plane, 47361)
+        return self.compdef.Features.MirrorFeatures.AddByDefinition(mirror_def)
+
     def fixed_work_point(self, sketch, pos, construction=True):
         return self.compdef.WorkPoints.AddByPoint(self.sketch_point(sketch, pos), construction)
     
