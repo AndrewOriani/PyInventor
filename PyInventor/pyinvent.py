@@ -1214,6 +1214,68 @@ class structure(object):
             obj_coll.Add(vals)
         
         return obj_coll
+
+    def get_plt_pts(self, item='all', close_path=False, curve_res=10):
+        sketch=self.sketch
+        obj_dict=self.obj_dict
+        if len(list(obj_dict.keys()))<2:
+            raise Exception('ERROR: Object list is empty')
+        else: 
+            pass
+        if type(item)==int:
+            obj_keys=['obj_%s'%str(item)]
+        elif type(item)==str:
+            if item=='all':
+                obj_keys=[]
+                for key in iter(obj_dict.keys()):
+                    if key=='start':
+                        pass
+                    else:
+                        obj_keys.append(key)
+            elif item.split('_')[0]=='obj':
+                obj_keys=[item]
+            else:
+                raise Exception('ERROR: Invalid object key, must be all, or object identifier string')
+        elif type(item)==list:
+            if type(item[0])==str:
+                obj_keys=[]
+                for keys in item:
+                    if keys in obj_dict.keys():
+                        obj_keys.append()
+                    else:
+                        raise Exception('ERROR: Invalid structure key')
+            else:
+                raise Exception('ERROR: Invalid structure key identifier, must be of form obj_(int value)')
+        else:
+            raise Exception('ERROR: Invalid object identifer input, must be all, string of obj ID, or list of obj ID')
+        
+        if obj_keys[0]!='line':
+            start_pt=obj_dict['start']['pts'][0]
+        else:
+            start_pt=obj_dict[obj_keys[0]]['start_pt']
+        
+        pts=[]
+        
+        final_pt=obj_dict[obj_keys[-1]]['end_pt']
+        
+        first_pt=start_pt
+
+        for key in obj_keys:
+            s_copy=copy.deepcopy(obj_dict)
+            s_copy[key]['start_pt']=start_pt
+            if obj_dict[key]['type']=='line_arc':
+                start=obj_dict[key]['start_pt']
+                end=obj_dict[key]['end_pt']
+                center=obj_dict[key]['center_pt']
+                arc_pts=arc_pts_pattern(start, end, center, curve_res)
+                for pt in arc_pts:
+                    pts.append(pt)
+            if obj_dict[key]['type']=='line':
+                line_pts=[obj_dict[key]['start_pt'], obj_dict[key]['end_pt']]
+                for pt in line_pts:
+                    pts.append(pt)
+            
+        return pts
             
                 
     def draw_line_arc(self,  obj_dict, item):
@@ -1387,6 +1449,41 @@ def ang2pt(direction, distance):
     return (dx, dy)
 
 
+def vec_rot(vector, angle):
+    rot_matrix=np.array([[np.cos(angle),-np.sin(angle)],[np.sin(angle),np.cos(angle)]])
+    return np.dot(rot_matrix, vector)
+
+def arc_pts_pattern(start, end, center, num_pts, return_list=True):
+    P_1=center
+    P_2=start
+    P_3=end
+    D_12=distance(P_1, P_2)
+    D_13=distance(P_1, P_3)
+    D_23=distance(P_2, P_3)
+    ang=np.arccos((D_12**2+D_13**2-D_23**2)/(2*D_12*D_13))
+    ang_trans=ang/(num_pts-1)
+    start_dir=np.array([(P_2[0]-P_1[0])/D_12, (P_2[1]-P_1[1])/D_12])
+    end_dir=np.array([(P_3[0]-P_1[0])/D_13, (P_3[1]-P_1[1])/D_13])
+    dir=np.sign(np.cross(start_dir, end_dir))
+    pts=[]
+    new_ang=0
+    for i in range(num_pts):
+        new_vec=D_12*vec_rot(start_dir, dir*new_ang)
+        pts.append((center[0]+new_vec[0], center[1]+new_vec[1]))
+        new_ang+=ang_trans
+    if return_list==False:
+        return np.transpose(np.array(pts))
+    else:
+        return pts
+
+def mirror_x(pts, xline, concatenate=True):
+    if concatenate==True:
+        pts_x=np.concatenate((pts[0], xline-pts[0][::-1]))
+        pts_y=np.concatenate((pts[1], pts[1][::-1]))
+        return np.array([pts_x, pts_y])
+    else:
+        return np.array([xline-pts[0], pts[1]])
+
 def rotate_pt(p, angle, center=(0, 0)):
     """rotates point p=(x,y) about point center (defaults to (0,0)) by CCW angle (in degrees)"""
     dx = p[0] - center[0]
@@ -1457,6 +1554,7 @@ def arc_pattern(start_angle, stop_angle, radius, center_pt=(2,1), segments=9):
         p = (x_0+radius * cos(theta), y_0+radius * sin(theta))
         pts.append(p)
     return pts
+
 
 def circle_pattern(radius, center_pt=(0,0), segments=3, offset=0):
     if type(center_pt)==tuple or type(center_pt)==list:
