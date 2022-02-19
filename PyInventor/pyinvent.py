@@ -9,6 +9,7 @@ import warnings
 import re
 import sys
 import shutil
+from scipy.special import binom
 
 '''
 
@@ -986,6 +987,15 @@ class iPart(com_obj):
         hole_feature=self.compdef.Features.HoleFeatures.AddDrilledByDistanceExtent(hole_placement, hole_tap_info, depth, extent_dir, FlatBottom, BottomTipAngle)    
         return hole_feature
             
+    def sketch_spline(self, sketch, points):
+        sketch=sketch.sketch_obj
+        pt_coll=self.new_obj_collection()
+        pts=[self.point(pt) for pt in points]
+        for pt in pts:
+            pt_coll.Add(pt)
+        spline=sketch.SketchSplines.Add(pt_coll)
+        return spline
+
     def sketch_line(self, sketch, start, end):
         sketch_obj, _, _=self.sketch_test(sketch)
         lines=sketch_obj.SketchLines
@@ -1179,7 +1189,8 @@ class structure(object):
         
         self.poly_line_coll=self.part.poly_lines(sketch, pts)
         return self.poly_line_coll
-    
+
+
     def draw_path(self, item='all', close_path=False):
         sketch=self.sketch
         obj_dict=self.obj_dict
@@ -1230,15 +1241,20 @@ class structure(object):
             s_copy[key]['start_pt']=start_pt
             if obj_dict[key]['type']=='line_arc':
                 lines.append(self.draw_line_arc(s_copy, key))
-            if obj_dict[key]['type']=='line':
+            elif obj_dict[key]['type']=='line':
                 lines.append(self.draw_line(s_copy, key))
+            elif obj_dict[key]['type']=='spline':
+                lines.append(self.draw_spline(s_copy, key))
+                if len(lines)>1:
+                    lines[-1].StartSketchPoint.Merge(lines[-2].EndSketchPoint)
+                
             end_pt_coord=round_pt(self.part.inv_unit_conv((lines[-1].EndSketchPoint.Geometry.X, lines[-1].EndSketchPoint.Geometry.Y)))
-            
+
             if type(start_pt)==tuple:
                 start_pt_check=round_pt(start_pt)
             else:
                 start_pt_check=round_pt(self.part.inv_unit_conv((start_pt.Geometry.X, start_pt.Geometry.Y)))
-            
+
             if end_pt_coord==start_pt_check:
                 start_pt=lines[-1].StartSketchPoint
             else:
@@ -1298,10 +1314,6 @@ class structure(object):
             start_pt=obj_dict[obj_keys[0]]['start_pt']
         
         pts=[]
-        
-        final_pt=obj_dict[obj_keys[-1]]['end_pt']
-        
-        first_pt=start_pt
 
         for key in obj_keys:
             s_copy=copy.deepcopy(obj_dict)
@@ -1313,11 +1325,13 @@ class structure(object):
                 arc_pts=arc_pts_pattern(start, end, center, curve_res)
                 for pt in arc_pts:
                     pts.append(pt)
-            if obj_dict[key]['type']=='line':
+            elif obj_dict[key]['type']=='line':
                 line_pts=[obj_dict[key]['start_pt'], obj_dict[key]['end_pt']]
                 for pt in line_pts:
                     pts.append(pt)
-            
+            elif obj_dict[key]['type']=='spline':
+                for pt in obj_dict[key]['pts']:
+                    pts.append(pt)
         return pts
             
                 
@@ -1359,7 +1373,42 @@ class structure(object):
         obj=obj_dict[obj_key]
         line=self.part.sketch_line(sketch, start=obj['start_pt'], end=obj['end_pt'])
         return line
-    
+
+    def draw_spline(self, obj_dict, item):
+        sketch=self.sketch
+        if type(item)==int:
+            obj_key='obj_%s'%str(item)
+        elif type(item)==str:
+            obj_key=item
+
+        if obj_key in obj_dict.keys():
+            if obj_dict[obj_key]['type']=='spline':
+                pass
+            else:
+                raise Exception('ERROR: Invalid line arc object for obj ID')
+        else:
+            raise Exception('ERROR: Obj ID not valid for structure')
+
+        obj=obj_dict[obj_key]
+        spline=self.part.sketch_spline(sketch, obj['pts'])
+        return spline
+
+    def add_bspline(self, num_pts, control_pts, degree=3, flip_dir=False, rotation=None, mirror=False, mirror_angle=0):
+        points=b_spline(control_pts, num=num_pts, degree=degree)
+        if flip_dir==True:
+            points=points[::-1]
+        if rotation!=None:
+            points=rotate_pts(points, angle=rotation, center=points[0])
+        if mirror==True:
+            points=mirror_pts(points, axis_angle=mirror_angle, axis_pt=points[0])
+        dx=self.last[0]-points[0][0]
+        dy=self.last[1]-points[0][1]
+        new_pts=translate_pts(points, (dx, dy))
+        spline_obj={'type':'spline','pts':new_pts, 'start_pt':new_pts[0], 'end_pt':new_pts[-1]}
+        self.last=new_pts[-1]
+        self.append_element(spline_obj)
+        self.structure_key=list(self.obj_dict.keys())[-1]
+
     def add_point_arc(self, start_angle=0, stop_angle=180, radius=1, segments=9, flip_dir=False, mirror=False, rotation=0):
         start=round_pt(self.last)
         init_angle=0
@@ -1617,3 +1666,30 @@ def circle_pattern(radius, center_pt=(0,0), segments=3, offset=0):
         theta += rot_ang * pi / 180.
         pts.append(p)
     return pts
+
+def bernstein_poly(order, k):
+    """
+    Bernstein polynomial.
+
+    """
+    coeff = binom(order, k)
+    def _bpoly(x):
+        return coeff * x ** k * (1 - x) ** (order - k)
+
+    return _bpoly
+
+
+def b_spline(c_points, num=200, degree=3):
+    """
+    Build Bézier curve from control points.
+
+    """
+    N = len(c_points)
+    # Prevent degree from exceeding count-1, otherwise splev will crash
+    degree = np.clip(degree,1,N-1)
+
+    t = np.linspace(0, 1, num=num)
+    curve = np.zeros((num, 2))
+    for ii in range(N):
+        curve += np.outer(bernstein_poly(degree , ii)(t), c_points[ii])
+    return [tuple(pt) for pt in curve]
