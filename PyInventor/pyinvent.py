@@ -1275,7 +1275,6 @@ class structure(object):
         return obj_coll
 
     def get_plt_pts(self, item='all', close_path=False, curve_res=10):
-        sketch=self.sketch
         obj_dict=self.obj_dict
         if len(list(obj_dict.keys()))<2:
             raise Exception('ERROR: Object list is empty')
@@ -1545,7 +1544,7 @@ def vec_rot(vector, angle):
     rot_matrix=np.array([[np.cos(angle),-np.sin(angle)],[np.sin(angle),np.cos(angle)]])
     return np.dot(rot_matrix, vector)
 
-def arc_pts_pattern(start, end, center, num_pts, return_list=True):
+def arc_pts_pattern(start, end, center, num_pts, return_list=True, dir=None):
     P_1=center
     P_2=start
     P_3=end
@@ -1556,7 +1555,13 @@ def arc_pts_pattern(start, end, center, num_pts, return_list=True):
     ang_trans=ang/(num_pts-1)
     start_dir=np.array([(P_2[0]-P_1[0])/D_12, (P_2[1]-P_1[1])/D_12])
     end_dir=np.array([(P_3[0]-P_1[0])/D_13, (P_3[1]-P_1[1])/D_13])
-    dir=np.sign(np.cross(start_dir, end_dir))
+    dir_check=np.sign(np.cross(start_dir, end_dir))
+    if dir_check==0 and type(dir)!=type(None):
+        dir=dir
+    elif dir_check==0 and type(dir)==type(None):
+        dir=1
+    else:
+        dir=dir_check
     pts=[]
     new_ang=0
     for i in range(num_pts):
@@ -1567,7 +1572,6 @@ def arc_pts_pattern(start, end, center, num_pts, return_list=True):
         return np.transpose(np.array(pts))
     else:
         return pts
-
 def mirror_x(pts, xline, concatenate=True):
     if concatenate==True:
         pts_x=np.concatenate((pts[0], xline-pts[0][::-1]))
